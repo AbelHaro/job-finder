@@ -1,5 +1,6 @@
 """Search public LinkedIn job listings using BeautifulSoup."""
 
+import logging
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -15,9 +16,14 @@ from job_finder.services.groq_job_ranking_service import GroqJobRankingService
 from job_finder.services.job_ranking_service import JobRankingService
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
     job_repo = SQLiteJobRepository(session_factory()())
 
@@ -38,22 +44,22 @@ def main() -> None:
                 if exc.code == 429
                 else f"LinkedIn returned HTTP {exc.code}."
             )
-            print(f"Try number {retries} | Error: {message}", file=sys.stderr)
+            logger.warning("Try number %s | Error: %s", retries, message)
             retries -= 1
         except (URLError, TimeoutError, ValueError) as exc:
-            print(f"Try number {retries} | Error: {exc}", file=sys.stderr)
+            logger.warning("Try number %s | Error: %s", retries, exc)
             retries -= 1
     if not jobs:
-        print("No jobs found.")
+        logger.warning("No jobs found.")
         sys.exit(1)
 
     with job_repo.session.begin():
         for job in jobs:
             saved_job = job_repo.save_job(job)
-            print(f"Saved job {saved_job.id} | {saved_job.title} | {saved_job.company}")
+            logger.info("Saved job %s | %s | %s", saved_job.id, saved_job.title, saved_job.company)
 
             score = job_ranking_service.rank_job(saved_job, personal_info=PERSNAL_INFO)
-            print(f"Job score: {score:.2f}")
+            logger.info("Job score: %.2f", score)
 
             time.sleep(4)  # Sleep for 4 seconds to avoid hitting rate limits
 

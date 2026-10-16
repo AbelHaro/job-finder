@@ -1,5 +1,6 @@
 """SQLAlchemy connections to a local SQLite file."""
 
+import logging
 import os
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 DEFAULT_DATABASE = Path(__file__).resolve().parents[3] / "jobs.sqlite3"
+logger = logging.getLogger(__name__)
 
 
 def database_url() -> URL:
@@ -26,7 +28,7 @@ def database_url() -> URL:
 
 def get_engine() -> Engine:
     url = database_url()
-    print(f"Connecting to database at {url.database}")
+    logger.info("Connecting to database at %s", url.database)
     return create_engine(url)
 
 

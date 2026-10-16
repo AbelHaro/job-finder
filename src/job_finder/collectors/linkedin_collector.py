@@ -1,5 +1,6 @@
 """Collect public LinkedIn job listings using BeautifulSoup."""
 
+import logging
 import time
 from urllib.error import URLError
 from urllib.parse import urlencode, urlsplit, urlunsplit
@@ -11,6 +12,7 @@ from job_finder.collectors.base_collector import BaseCollector
 from job_finder.models.job import Job, JobSearch
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+logger = logging.getLogger(__name__)
 
 
 def parse_description(html: str) -> str:
@@ -119,8 +121,10 @@ class LinkedInCollector(BaseCollector):
             retry_count = 3
             for attempt in range(retry_count):
                 try:
-                    print(
-                        f"Trying to fetch description for {job.url} (attempt {attempt + 1})..."
+                    logger.info(
+                        "Trying to fetch description for %s (attempt %s)...",
+                        job.url,
+                        attempt + 1,
                     )
                     job.description = parse_description(fetch_html(job.url))
                     break  # Successfully fetched and parsed the description
@@ -128,5 +132,5 @@ class LinkedInCollector(BaseCollector):
                     if attempt < retry_count - 1:
                         time.sleep(2)  # Wait before retrying
                     else:
-                        print(f"Failed to fetch description for {job.url}: {exc}")
+                        logger.error("Failed to fetch description for %s: %s", job.url, exc)
         return jobs
