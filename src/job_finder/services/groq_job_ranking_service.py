@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import dataclass
 
@@ -8,6 +9,8 @@ from langchain_groq import ChatGroq
 from job_finder.models.job_ranking_response import JobRankingServiceResponse
 from job_finder.models.stored_job import Job
 from job_finder.services.job_ranking_service import JobRankingService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,12 +60,33 @@ class GroqJobRankingService(JobRankingService):
             description=job.description,
             personal_info=personal_info,
         )
-        response = self.model.with_structured_output(JobRankingServiceResponse).invoke(
-            messages
-        )
-        if not isinstance(response, JobRankingServiceResponse):
+        result = self.model.with_structured_output(
+            JobRankingServiceResponse, include_raw=True
+        ).invoke(messages)
+
+        if not isinstance(result, dict):
             raise TypeError(
-                f"Expected a JobRankingServiceResponse from the ranking model. Got {type(response).__name__}."
+                "Expected a structured-output result with raw response data."
             )
+        response = result["parsed"]
+
+        if not isinstance(response, JobRankingServiceResponse):
+            raw = result.get("raw")
+            parsing_error = result.get("parsing_error")
+            logger.error(
+                "Ranking failed for job %s: parsed_type=%s, tool_calls=%r, "
+                "response_metadata=%r, parsing_error=%r",
+                job.id,
+                type(response).__name__,
+                getattr(raw, "tool_calls", None),
+                getattr(raw, "response_metadata", None),
+                parsing_error,
+            )
+            raise TypeError(
+                """
+                Ranking model returned no valid JobRankingServiceResponse; 
+                see logs for tool calls, response metadata, and parsing error.
+                """
+            ) from parsing_error
 
         return response.score

@@ -3,9 +3,10 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
-    JSON,
+    CheckConstraint,
     Date,
     DateTime,
+    Float,
     Integer,
     String,
     Text,
@@ -21,9 +22,13 @@ class Base(DeclarativeBase):
 
 class Job(Base):
     __tablename__ = "jobs"
-    __table_args__ = (UniqueConstraint("url", name="uq_jobs_url"),)
+    __table_args__ = (
+        UniqueConstraint("url", name="uq_jobs_url"),
+        CheckConstraint("match_score >= 0 AND match_score <= 1", name="ck_jobs_match_score"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    match_score: Mapped[float | None] = mapped_column(Float)
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
     company: Mapped[str] = mapped_column(Text)
@@ -37,5 +42,3 @@ class Job(Base):
         DateTime(), server_default=func.now()
     )
     content_hash: Mapped[str] = mapped_column(String(64))
-    embedding: Mapped[list[float] | None] = mapped_column(JSON(none_as_null=True))
-    embedding_model: Mapped[str | None] = mapped_column(Text)

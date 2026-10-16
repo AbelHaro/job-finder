@@ -4,7 +4,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
-from sqlalchemy import case
+from sqlalchemy import case, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,7 @@ class SQLiteJobRepository(JobRepository):
         )
         incoming = statement.excluded
         changed = Job.content_hash != incoming.content_hash
+        match_changed = changed | (Job.location != incoming.location)
         statement = statement.on_conflict_do_update(
             index_elements=[Job.url],
             set_={
@@ -41,10 +42,29 @@ class SQLiteJobRepository(JobRepository):
                 "posted": incoming.posted,
                 "last_seen_at": datetime.now(timezone.utc).replace(tzinfo=None),
                 "content_hash": incoming.content_hash,
-                "embedding": case((changed, None), else_=Job.embedding),
-                "embedding_model": case((changed, None), else_=Job.embedding_model),
+                "match_score": case((match_changed, None), else_=Job.match_score),
             },
         ).returning(Job)
         return self.session.scalars(
             statement, execution_options={"populate_existing": True}
         ).one()
+
+    def save_jobs(self, jobs: list[CollectedJob]) -> list[Job]:
+        """Upsert jobs in input order within the caller's transaction."""
+        return [self.save_job(job) for job in jobs]
+
+    def get_unseen_jobs(self) -> list[Job]:
+        """Return jobs with no match score, oldest first."""
+        statement = (
+            select(Job).where(Job.match_score.is_(None)).order_by(Job.first_seen_at, Job.id)
+        )
+        return list(self.session.scalars(statement).all())
+
+    def save_match_score(self, job_id: int, score: float) -> None:
+        if not 0 <= score <= 1:
+            raise ValueError("score must be between 0 and 1")
+        job = self.session.get(Job, job_id)
+        if job is None:
+            raise ValueError(f"Job {job_id} does not exist")
+        job.match_score = score
+        self.session.flush()

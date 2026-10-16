@@ -1,7 +1,6 @@
 """Search public LinkedIn job listings using BeautifulSoup."""
 
 import logging
-import sys
 import time
 from urllib.error import HTTPError, URLError
 
@@ -10,7 +9,9 @@ from dotenv import load_dotenv
 from job_finder.collectors.base_collector import JobSearch
 from job_finder.collectors.linkedin_collector import LinkedInCollector
 from job_finder.database.sqlite import session_factory
+from job_finder.models.stored_job import Job
 from job_finder.personal_info import PERSNAL_INFO
+from job_finder.repositories.job_repository import JobRepository
 from job_finder.repositories.sqlite_job_repository import SQLiteJobRepository
 from job_finder.services.groq_job_ranking_service import GroqJobRankingService
 from job_finder.services.job_ranking_service import JobRankingService
@@ -25,7 +26,7 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    job_repo = SQLiteJobRepository(session_factory()())
+    sessions = session_factory()
 
     job_ranking_service: JobRankingService = GroqJobRankingService(
         model_name="openai/gpt-oss-20b"
@@ -33,6 +34,7 @@ def main() -> None:
 
     search = JobSearch(query="computer vision", location="Spain", limit=5)
 
+    jobs = []
     retries = 10
     while retries > 0:
         try:
@@ -50,18 +52,29 @@ def main() -> None:
             logger.warning("Try number %s | Error: %s", retries, exc)
             retries -= 1
     if not jobs:
-        logger.warning("No jobs found.")
-        sys.exit(1)
+        logger.warning("No jobs collected; processing previously saved jobs.")
 
-    with job_repo.session.begin():
-        for job in jobs:
-            saved_job = job_repo.save_job(job)
-            logger.info("Saved job %s | %s | %s", saved_job.id, saved_job.title, saved_job.company)
+    with sessions.begin() as session:
+        job_repo: JobRepository = SQLiteJobRepository(session)
+        job_repo.save_jobs(jobs)
 
-            score = job_ranking_service.rank_job(saved_job, personal_info=PERSNAL_INFO)
-            logger.info("Job score: %.2f", score)
-
-            time.sleep(4)  # Sleep for 4 seconds to avoid hitting rate limits
+    # Each score commits separately so a later API failure preserves progress.
+    with sessions() as session:
+        job_repo = SQLiteJobRepository(session)
+        with session.begin():
+            unseen_ids = [job.id for job in job_repo.get_unseen_jobs()]
+            logger.info("Found %s unseen jobs to rank.", len(unseen_ids))
+        for job_id in unseen_ids:
+            with session.begin():
+                job = session.get(Job, job_id)
+                if job is None or job.match_score is not None:
+                    continue
+                score = job_ranking_service.rank_job(job, personal_info=PERSNAL_INFO)
+                job_repo.save_match_score(job.id, score)
+                logger.info(
+                    "Ranked job %s | %s | score: %.2f", job.id, job.title, score
+                )
+            time.sleep(4)
 
 
 if __name__ == "__main__":
