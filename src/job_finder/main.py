@@ -3,33 +3,46 @@
 import sys
 from urllib.error import HTTPError, URLError
 
-from .collectors.base_collector import JobSearch
-from .collectors.linkedin_collector import LinkedInCollector
+from dotenv import load_dotenv
+
+from job_finder.collectors.base_collector import JobSearch
+from job_finder.collectors.linkedin_collector import LinkedInCollector
+from job_finder.database.sqlite import session_factory
+from job_finder.repository import JobRepository
+
+load_dotenv()
 
 
 def main() -> None:
+
+    job_repo = JobRepository(session_factory()())
+
     search = JobSearch(query="computer vision", location="Spain", limit=10)
-    try:
-        jobs = LinkedInCollector().collect(search)
-    except HTTPError as exc:
-        message = (
-            "LinkedIn rate limited the request. Try again later."
-            if exc.code == 429
-            else f"LinkedIn returned HTTP {exc.code}."
-        )
-        print(f"Error: {message}", file=sys.stderr)
-        raise SystemExit(1) from exc
-    except (URLError, TimeoutError, ValueError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from exc
+
+    retries = 10
+    while retries > 0:
+        try:
+            jobs = LinkedInCollector().collect(search)
+            break
+        except HTTPError as exc:
+            message = (
+                f"LinkedIn rate limited the request. Try number {retries}."
+                if exc.code == 429
+                else f"LinkedIn returned HTTP {exc.code}."
+            )
+            print(f"Try number {retries} | Error: {message}", file=sys.stderr)
+            retries -= 1
+        except (URLError, TimeoutError, ValueError) as exc:
+            print(f"Try number {retries} | Error: {exc}", file=sys.stderr)
+            retries -= 1
     if not jobs:
         print("No jobs found.")
-    else:
+        sys.exit(1)
+
+    with job_repo.session.begin():
         for job in jobs:
-            print(f"{job.title} — {job.company}")
-            print(f"  {job.description:.100}...")
-            print(f"  {job.location} | Posted: {job.posted or 'unknown'}")
-            print(f"  {job.url}\n")
+            saved_job = job_repo.save_job(job)
+            print(f"Saved job {saved_job.id} | {saved_job.title} | {saved_job.company}")
 
 
 if __name__ == "__main__":
