@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from job_finder.models import Job, JobSearch
+from job_finder.models.job import Job, JobSearch
 
 
 class BaseCollector(ABC):

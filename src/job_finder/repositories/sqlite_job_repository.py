@@ -8,8 +8,9 @@ from sqlalchemy import case
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
-from job_finder.database.models import Job
-from job_finder.models import Job as CollectedJob
+from job_finder.models.job import Job as CollectedJob
+from job_finder.models.stored_job import Job
+from job_finder.repositories.job_repository import JobRepository
 
 
 def content_hash(job: CollectedJob) -> str:
@@ -17,7 +18,7 @@ def content_hash(job: CollectedJob) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-class JobRepository:
+class SQLiteJobRepository(JobRepository):
     """Persist jobs using a caller-managed session and transaction."""
 
     def __init__(self, session: Session) -> None:

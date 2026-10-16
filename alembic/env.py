@@ -1,6 +1,6 @@
 from alembic import context
 from sqlalchemy import create_engine, pool
-from job_finder.database.models import Base
+from job_finder.models.stored_job import Base
 from job_finder.database.sqlite import database_url
 
 

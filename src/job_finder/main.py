@@ -1,6 +1,7 @@
 """Search public LinkedIn job listings using BeautifulSoup."""
 
 import sys
+import time
 from urllib.error import HTTPError, URLError
 
 from dotenv import load_dotenv
@@ -8,16 +9,23 @@ from dotenv import load_dotenv
 from job_finder.collectors.base_collector import JobSearch
 from job_finder.collectors.linkedin_collector import LinkedInCollector
 from job_finder.database.sqlite import session_factory
-from job_finder.repository import JobRepository
+from job_finder.personal_info import PERSNAL_INFO
+from job_finder.repositories.sqlite_job_repository import SQLiteJobRepository
+from job_finder.services.groq_job_ranking_service import GroqJobRankingService
+from job_finder.services.job_ranking_service import JobRankingService
 
 load_dotenv()
 
 
 def main() -> None:
 
-    job_repo = JobRepository(session_factory()())
+    job_repo = SQLiteJobRepository(session_factory()())
 
-    search = JobSearch(query="computer vision", location="Spain", limit=10)
+    job_ranking_service: JobRankingService = GroqJobRankingService(
+        model_name="openai/gpt-oss-20b"
+    )
+
+    search = JobSearch(query="computer vision", location="Spain", limit=5)
 
     retries = 10
     while retries > 0:
@@ -43,6 +51,11 @@ def main() -> None:
         for job in jobs:
             saved_job = job_repo.save_job(job)
             print(f"Saved job {saved_job.id} | {saved_job.title} | {saved_job.company}")
+
+            score = job_ranking_service.rank_job(saved_job, personal_info=PERSNAL_INFO)
+            print(f"Job score: {score:.2f}")
+
+            time.sleep(4)  # Sleep for 4 seconds to avoid hitting rate limits
 
 
 if __name__ == "__main__":

@@ -9,9 +9,9 @@ from unittest.mock import patch
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from job_finder.database.models import Base, Job
+from job_finder.models.stored_job import Base, Job
 from job_finder.main import main
-from job_finder.models import Job as CollectedJob
+from job_finder.models.job import Job as CollectedJob
 
 
 class CLIStorageTest(unittest.TestCase):

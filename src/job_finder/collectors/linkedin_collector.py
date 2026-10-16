@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup, Tag
 
 from job_finder.collectors.base_collector import BaseCollector
-from job_finder.models import Job, JobSearch
+from job_finder.models.job import Job, JobSearch
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 
