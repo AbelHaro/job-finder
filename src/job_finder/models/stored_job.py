@@ -3,6 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -24,11 +25,18 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         UniqueConstraint("url", name="uq_jobs_url"),
-        CheckConstraint("match_score >= 0 AND match_score <= 1", name="ck_jobs_match_score"),
+        CheckConstraint(
+            "match_score >= 0 AND match_score <= 1", name="ck_jobs_match_score"
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     match_score: Mapped[float | None] = mapped_column(Float)
+    cv_generated: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0"
+    )
+    cv_generated_at: Mapped[datetime | None] = mapped_column(DateTime())
+    cv_path: Mapped[str | None] = mapped_column(Text)
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
     company: Mapped[str] = mapped_column(Text)

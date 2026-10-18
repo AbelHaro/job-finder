@@ -18,5 +18,13 @@ class JobRepository(ABC):
         """Return jobs with no match score, oldest first."""
 
     @abstractmethod
+    def get_jobs_pending_cv_ids(self, min_score: float) -> list[int]:
+        """Return IDs with a score at least min_score and no generated CV, ordered by ID."""
+
+    @abstractmethod
     def save_match_score(self, job_id: int, score: float) -> None:
         """Save a match score between zero and one for an existing job."""
+
+    @abstractmethod
+    def mark_cv_generated(self, job_id: int, path: str) -> None:
+        """Record a successfully generated CV for an existing job."""

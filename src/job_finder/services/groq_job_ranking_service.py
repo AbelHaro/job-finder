@@ -18,7 +18,7 @@ class GroqJobRankingService(JobRankingService):
     model: BaseChatModel
     prompt: ChatPromptTemplate
 
-    def __init__(self, model_name: str = "openai/gpt-oss-20b"):
+    def __init__(self, model_name: str = "openai/gpt-oss-120b"):
         if os.getenv("GROQ_API_KEY") is None:
             raise ValueError("GROQ_API_KEY environment variable is not set.")
 

@@ -1,16 +1,156 @@
-PERSNAL_INFO = """My name is Abel Haro Armero, and I am a Computer Engineer with a background in software development, computer vision, embedded systems, and IoT. My CV lists my location as Altea / Valencia, Spain.
+"""Verified candidate facts, including links and project technology stacks."""
 
-I hold a Bachelor’s Degree in Informatics Engineering from Universitat Politècnica de València, completed between September 2021 and July 2025, with an average grade of 8.6/10. I also completed a Master’s Degree in Computer and Network Engineering at the same university between September 2025 and July 2026, with an Industry 4.0 orientation.
+from job_finder.models.personal_info import (
+    CVHeader,
+    PersonalEntry,
+    PersonalInfo,
+    PersonalProject,
+)
 
-From October 2024 to July 2025, I worked as a Software Development and Computer Vision Intern in UPV’s DISCA Department. I developed a prototype for detecting defects in moving industrial objects, covering data preparation, model training, validation, and deployment. I used Python, YOLO, and Ultralytics, optimized inference with TensorRT, and deployed models on NVIDIA Jetson under Linux, evaluating accuracy, processing performance, and energy consumption.
-
-In July 2024, I completed a Software Development Internship at SOLTECSIS S.L., contributing to the open-source FWCloud project. I debugged and corrected issues during its migration from JavaScript to TypeScript and helped refactor the code to improve readability, maintainability, and type safety.
-
-My bachelor’s thesis focused on defect detection using convolutional neural networks for industrial quality control. It combined YOLO, TensorRT, and NVIDIA Jetson and received a grade of 10/10 with Matrícula de Honor.
-
-My personal projects include Tracker, an object-tracking library under development in C++23 with Python bindings, implementing tracking algorithms and integrating with YOLO and OpenCV. I also developed a full-stack URL shortener using React, Go, PostgreSQL, Docker, and Google Cloud. My academic projects include Safe Art, an IoT monitoring system using C++ and MQTT, and a master’s project implementing an MQTT gateway over LoRa/AlLoRa networks with MicroPython and ESP32 hardware.
-
-My interests include backend development, cloud infrastructure, maintainable software architecture, computer vision, and embedded computing. Spanish is my native language, and I have university-certified B2 English.
-
-You can find my portfolio at abelharo.me, my projects on GitHub, and contact me at abelh2003@gmail.com.
-"""
+PERSONAL_INFO = PersonalInfo(
+    header=CVHeader(
+        name="Abel Haro Armero",
+        email="abelh2003@gmail.com",
+        linkedin="https://www.linkedin.com/in/abel-haro-armero-54bb6518a",
+        portfolio="https://abelharo.me",
+        github="https://github.com/AbelHaro",
+    ),
+    summary="Computer Engineer with a background in software development, computer vision, embedded systems and IoT.",
+    location="Altea / Valencia, Spain (for job ranking only; omit residence from the CV)",
+    experience=(
+        PersonalEntry(
+            title="DISCA Department — Universitat Politècnica de València",
+            dates="Oct. 2024 – Jul. 2025",
+            subtitle="Software Development and Computer Vision Intern",
+            description="Developed an academic prototype to detect defects in moving industrial objects. "
+            "Prepared datasets, trained and validated models with Python, YOLO and Ultralytics. "
+            "Compared architectures and datasets, optimized inference with TensorRT and deployed on "
+            "NVIDIA Jetson under Linux. Evaluated accuracy, runtime performance and energy consumption.",
+            technologies=(
+                "Python",
+                "YOLO",
+                "Ultralytics",
+                "TensorRT",
+                "NVIDIA Jetson",
+                "Linux",
+            ),
+        ),
+        PersonalEntry(
+            title="SOLTECSIS S.L.",
+            dates="Jul. 2024",
+            subtitle="Software Development Intern",
+            description="Contributed to the open-source FWCloud project. Debugged and fixed issues "
+            "during its migration from JavaScript to TypeScript, reviewing behavior affected by typing. "
+            "Collaborated on refactoring to improve readability, maintainability and type safety, "
+            "following project structure and team reviews.",
+            technologies=("JavaScript", "TypeScript", "FWCloud"),
+        ),
+    ),
+    education=(
+        PersonalEntry(
+            title="Master’s Degree in Computer and Network Engineering",
+            dates="Sep. 2025 – Jul. 2026",
+            subtitle="Universitat Politècnica de València",
+            description="Industry 4.0 orientation. Coursework: Design of Computing Solutions with RISC-V; "
+            "Optimization of Software Environments for Artificial Intelligence; Advanced Computing Systems for Industry.",
+        ),
+        PersonalEntry(
+            title="Bachelor’s Degree in Informatics Engineering",
+            dates="Sep. 2021 – Jul. 2025",
+            subtitle="Universitat Politècnica de València | Average grade: 8.6/10",
+            description="Coursework: Deep Learning for Industry; Automation and Robotics for Digital Industry; "
+            "Embedded Systems Programming using Ada (academic experience). "
+            "Bachelor’s thesis: 10/10, Matrícula de Honor.",
+        ),
+    ),
+    projects=(
+        PersonalProject(
+            id="tracker",
+            title="Tracker — Object Tracking Library",
+            dates="In development",
+            subtitle="Personal project",
+            url="https://github.com/AbelHaro/tracker",
+            description="Developing a C++ object tracking library with Python bindings. Implements "
+            "ByteTrack and SORT to associate detections across frames and maintain object identities. "
+            "Includes YOLO and OpenCV video detection/tracking integration, a NumPy interface, "
+            "and unit tests for tracking algorithms and the Kalman filter.",
+            technologies=(
+                "C++",
+                "Python",
+                "ByteTrack",
+                "SORT",
+                "YOLO",
+                "OpenCV",
+                "NumPy",
+            ),
+        ),
+        PersonalProject(
+            id="url-shortener",
+            title="URL Shortener",
+            dates="Mar. 2026",
+            subtitle="Personal full-stack project",
+            url="https://github.com/AbelHaro/url-shortener",
+            description="Developed an application to create, store and manage shortened URLs. "
+            "Designed the user flow and communication between frontend, API and database. "
+            "Implemented the frontend in React, backend in Go and persistence in PostgreSQL; "
+            "containerized with Docker and deployed on Google Cloud, prioritizing maintainable architecture. "
+            "Live application: https://url-shortener.abelharo.me/.",
+            technologies=("React", "Go", "PostgreSQL", "Docker", "Google Cloud"),
+        ),
+        PersonalProject(
+            id="tfg",
+            title="Defect Detection with Convolutional Neural Networks",
+            dates="Jul. 2025",
+            subtitle="Bachelor’s thesis | Grade: 10/10, Matrícula de Honor",
+            url="https://github.com/AbelHaro/TFG",
+            description="Developed real-time defect detection for industrial product images. "
+            "Compared YOLO models and datasets, trained and validated CNN-based detectors, "
+            "optimized inference with TensorRT on NVIDIA Jetson and analyzed energy consumption "
+            "to assess low-power industrial quality control applications.",
+            technologies=(
+                "Python",
+                "CNN",
+                "YOLO",
+                "Ultralytics",
+                "TensorRT",
+                "NVIDIA Jetson",
+            ),
+        ),
+        PersonalProject(
+            id="safe-art",
+            title="Safe Art — IoT Sensing and Monitoring",
+            dates="Jan. 2026",
+            subtitle="Academic project",
+            url="https://github.com/AbelHaro/safe-art",
+            description="Implemented sensor data acquisition in C++ and transmission over MQTT. "
+            "Integrated devices with a web platform for real-time monitoring and alerts to protect artworks.",
+            technologies=("C++", "MQTT"),
+        ),
+        PersonalProject(
+            id="mqtt-lora",
+            title="MQTT Gateway over LPWAN Networks",
+            dates="Jul. 2026",
+            subtitle="Master’s project",
+            description="Designed and implemented an MQTT–AlLoRa–MQTT gateway with a custom "
+            "MicroPython broker. Used ESP32 LilyGo T3-S3 hardware, evaluated performance through "
+            "stress tests and validated end-to-end integration, exposing an LPWAN network as "
+            "transparent MQTT transport.",
+            technologies=(
+                "MicroPython",
+                "MQTT 3.1.1",
+                "AlLoRa",
+                "LoRa",
+                "ESP32 LilyGo T3-S3",
+                "Docker",
+            ),
+        ),
+    ),
+    languages=("Spanish: native", "English: B2, university-certified"),
+    interests=(
+        "Backend development",
+        "Cloud infrastructure",
+        "Maintainable software architecture",
+        "Computer vision",
+        "Embedded computing",
+    ),
+)

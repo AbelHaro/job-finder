@@ -16,3 +16,6 @@ wheels/
 *.sqlite3-*
 *.db
 *.db-*
+
+# Generated personal CV artifacts
+generated_cvs/

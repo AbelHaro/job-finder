@@ -1,7 +1,8 @@
-from alembic import context
 from sqlalchemy import create_engine, pool
-from job_finder.models.stored_job import Base
+
+from alembic import context
 from job_finder.database.sqlite import database_url
+from job_finder.models.stored_job import Base
 
 
 def run_migrations():

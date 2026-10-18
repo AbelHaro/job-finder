@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import case, select
 from sqlalchemy.dialects.sqlite import insert
@@ -40,7 +40,7 @@ class SQLiteJobRepository(JobRepository):
                 "location": incoming.location,
                 "description": incoming.description,
                 "posted": incoming.posted,
-                "last_seen_at": datetime.now(timezone.utc).replace(tzinfo=None),
+                "last_seen_at": datetime.now(UTC).replace(tzinfo=None),
                 "content_hash": incoming.content_hash,
                 "match_score": case((match_changed, None), else_=Job.match_score),
             },
@@ -60,6 +60,14 @@ class SQLiteJobRepository(JobRepository):
         )
         return list(self.session.scalars(statement).all())
 
+    def get_jobs_pending_cv_ids(self, min_score: float) -> list[int]:
+        statement = (
+            select(Job.id)
+            .where(Job.match_score >= min_score, Job.cv_generated.is_(False))
+            .order_by(Job.id)
+        )
+        return list(self.session.scalars(statement).all())
+
     def save_match_score(self, job_id: int, score: float) -> None:
         if not 0 <= score <= 1:
             raise ValueError("score must be between 0 and 1")
@@ -67,4 +75,13 @@ class SQLiteJobRepository(JobRepository):
         if job is None:
             raise ValueError(f"Job {job_id} does not exist")
         job.match_score = score
+        self.session.flush()
+
+    def mark_cv_generated(self, job_id: int, path: str) -> None:
+        job = self.session.get(Job, job_id)
+        if job is None:
+            raise ValueError(f"Job {job_id} does not exist")
+        job.cv_generated = True
+        job.cv_generated_at = datetime.now(UTC).replace(tzinfo=None)
+        job.cv_path = path
         self.session.flush()
