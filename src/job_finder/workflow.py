@@ -5,7 +5,6 @@ import logging
 import re
 import time
 import unicodedata
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -20,7 +19,7 @@ from job_finder.models.job import JobSearch
 from job_finder.models.personal_info import PersonalInfo
 from job_finder.models.stored_job import Job
 from job_finder.repositories.sqlite_job_repository import SQLiteJobRepository
-from job_finder.services.groq_cv_generator_service import GroqCVGeneratorService
+from job_finder.services.cv_generator_service import CVGeneratorService
 from job_finder.services.job_ranking_service import JobRankingService
 from job_finder.services.notification_service import NotificationService
 
@@ -64,7 +63,7 @@ class JobFinderWorkflow:
     collector: BaseCollector
     ranker: JobRankingService
     personal_info: PersonalInfo
-    cv_generator_factory: Callable[[], GroqCVGeneratorService] = GroqCVGeneratorService
+    cv_generator: CVGeneratorService
     output_dir: Path = Path("generated_cvs")
     request_delay: float = 4
     collection_attempts: int = 10
@@ -142,7 +141,7 @@ class JobFinderWorkflow:
             job_ids = SQLiteJobRepository(session).get_jobs_pending_cv_ids(
                 min_score=self.match_threshold
             )
-        generator = None
+        logger.info("Found %s jobs pending CV generation.", len(job_ids))
         for job_id in job_ids:
             try:
                 # Commit each successful CV independently, preserving progress on failures.
@@ -155,9 +154,8 @@ class JobFinderWorkflow:
                     )
                     existing = self.adopt_existing_cv(job, output)
                     if not existing:
-                        if generator is None:
-                            generator = self.cv_generator_factory()
-                        generator.generate_pdf(self.personal_info, job, output)
+                        logger.info("Generating CV for job %s | %s", job.id, job.title)
+                        self.cv_generator.generate_pdf(self.personal_info, job, output)
                     if not output.is_file() or not output.with_suffix(".tex").is_file():
                         raise RuntimeError(
                             "CV generation did not produce both PDF and LaTeX files"

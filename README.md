@@ -2,7 +2,8 @@
 
 Collect LinkedIn jobs, rank them against your profile, and generate tailored
 LaTeX CVs for matches scoring **0.6 or higher**. LangGraph coordinates the
-workflow; Groq's `openai/gpt-oss-120b` handles ranking and tailoring.
+workflow; Groq's `openai/gpt-oss-120b` handles ranking and tailoring through
+the shared LangChain services.
 
 ## Workflow
 

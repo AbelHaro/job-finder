@@ -30,13 +30,12 @@ class WorkflowTests(unittest.TestCase):
         self.generator = Mock()
         self.generated_job_ids: list[int] = []
         self.generator.generate_pdf.side_effect = self.write_cv
-        self.factory = Mock(return_value=self.generator)
         self.workflow = JobFinderWorkflow(
             sessions=self.sessions,
             collector=self.collector,
             ranker=self.ranker,
             personal_info=PERSONAL_INFO,
-            cv_generator_factory=self.factory,
+            cv_generator=self.generator,
             output_dir=Path(self.directory.name),
             request_delay=0,
             collection_attempts=2,
@@ -139,7 +138,7 @@ class WorkflowTests(unittest.TestCase):
         result = self.workflow.compile().invoke({"search": self.search})
         self.assertEqual(len(result["ranked_ids"]), 1)
         self.assertEqual(result["generated_paths"], [])
-        self.factory.assert_not_called()
+        self.generator.generate_pdf.assert_not_called()
         call = self.ranker.rank_job.call_args
         assert call is not None
         self.assertEqual(
@@ -281,7 +280,7 @@ class WorkflowTests(unittest.TestCase):
         with self.sessions() as session:
             self.assertEqual(self.get_job(session, 1).match_score, 0.6)
             self.assertIsNone(self.get_job(session, 2).match_score)
-        self.factory.assert_not_called()
+        self.generator.generate_pdf.assert_not_called()
 
 
 if __name__ == "__main__":

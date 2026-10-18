@@ -8,7 +8,12 @@ from job_finder.collectors.base_collector import JobSearch
 from job_finder.collectors.linkedin_collector import LinkedInCollector
 from job_finder.database.sqlite import session_factory
 from job_finder.personal_info import PERSONAL_INFO
-from job_finder.services.groq_job_ranking_service import GroqJobRankingService
+from job_finder.services.groq_cv_generator_service import (
+    GroqCVGeneratorService,
+)
+from job_finder.services.groq_job_ranking_service import (
+    GroqJobRankingService,
+)
 from job_finder.services.telegram_notification_service import (
     TelegramNotificationService,
 )
@@ -25,8 +30,9 @@ def main() -> None:
     runner = JobFinderWorkflow(
         sessions=session_factory(),
         collector=LinkedInCollector(),
-        ranker=GroqJobRankingService(model_name="openai/gpt-oss-120b"),
+        ranker=GroqJobRankingService(),
         personal_info=PERSONAL_INFO,
+        cv_generator=GroqCVGeneratorService(),
         notification_service=notifier,
     )
     workflow = runner.compile()
