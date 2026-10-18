@@ -94,9 +94,14 @@ class LinkedInCollector(BaseCollector):
         seen = set()
         start = 0
         while len(jobs) < search.limit:
-            params = urlencode(
-                {"keywords": search.query, "location": search.location, "start": start}
-            )
+            query_params = {
+                "keywords": search.query,
+                "location": search.location,
+                "start": str(start),
+            }
+            if search.posted_within_days is not None:
+                query_params["f_TPR"] = f"r{search.posted_within_days * 86400}"
+            params = urlencode(query_params)
             html = fetch_html(f"{SEARCH_URL}?{params}")
             page = parse_jobs(html)
             if not page:
@@ -132,5 +137,7 @@ class LinkedInCollector(BaseCollector):
                     if attempt < retry_count - 1:
                         time.sleep(2)  # Wait before retrying
                     else:
-                        logger.error("Failed to fetch description for %s: %s", job.url, exc)
+                        logger.error(
+                            "Failed to fetch description for %s: %s", job.url, exc
+                        )
         return jobs

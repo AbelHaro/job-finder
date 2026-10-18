@@ -4,6 +4,26 @@ Collect LinkedIn jobs, rank them against your profile, and generate tailored
 LaTeX CVs for matches scoring **0.6 or higher**. LangGraph coordinates the
 workflow; Groq's `openai/gpt-oss-120b` handles ranking and tailoring.
 
+## Workflow
+
+```mermaid
+flowchart TD
+    Search[Configured job search] --> Collect[Collect LinkedIn listings and descriptions]
+    Collect --> Store[Save or update jobs in SQLite]
+    Store --> Rank[Rank unscored jobs against personal information]
+    Rank --> Scores[Commit each match score to SQLite]
+    Scores --> Select[Select jobs scoring at least 0.6 without a generated CV]
+    Select --> Existing{PDF and LaTeX source already exist?}
+    Existing -->|Yes| Record[Record CV status, timestamp and path in SQLite]
+    Existing -->|No| Tailor[Tailor CV with up to three relevant projects]
+    Tailor --> Compile[Render LaTeX and compile PDF]
+    Compile -->|Success| Record
+    Tailor -->|Failure| Retry[Log failure and retry on the next run]
+    Compile -->|Failure| Retry
+    Record --> Next[Continue with the next qualifying job]
+    Retry --> Next
+```
+
 ## Setup
 
 Requires Python 3.14+, [uv](https://docs.astral.sh/uv/), and `pdflatex`.

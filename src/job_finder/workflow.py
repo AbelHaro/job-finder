@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 def filename_slug(value: str, limit: int = 150) -> str:
     normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9]+", "_", normalized.lower()).strip("_")[:limit].rstrip("_") or "job"
+    return (
+        re.sub(r"[^a-z0-9]+", "_", normalized.lower()).strip("_")[:limit].rstrip("_")
+        or "job"
+    )
 
 
 def cv_filename(job_name: str) -> str:
@@ -118,7 +121,9 @@ class JobFinderWorkflow:
         if legacy.is_file() and legacy.with_suffix(".tex").is_file():
             # Move the whole job folder so a completed CV is never regenerated.
             if output.parent.exists():
-                raise FileExistsError(f"Cannot migrate CV folder: {output.parent} already exists")
+                raise FileExistsError(
+                    f"Cannot migrate CV folder: {output.parent} already exists"
+                )
             legacy.parent.rename(output.parent)
             return True
         return False
@@ -127,7 +132,9 @@ class JobFinderWorkflow:
         generated_paths = []
         failed_cv_ids = []
         with self.sessions() as session:
-            job_ids = SQLiteJobRepository(session).get_jobs_pending_cv_ids(min_score=0.6)
+            job_ids = SQLiteJobRepository(session).get_jobs_pending_cv_ids(
+                min_score=0.6
+            )
         generator = None
         for job_id in job_ids:
             try:
@@ -136,18 +143,29 @@ class JobFinderWorkflow:
                     job = session.get(Job, job_id)
                     if job is None or job.cv_generated:
                         continue
-                    output = self.output_dir / cv_folder_name(job) / cv_filename(job.title)
+                    output = (
+                        self.output_dir / cv_folder_name(job) / cv_filename(job.title)
+                    )
                     existing = self.adopt_existing_cv(job, output)
                     if not existing:
                         if generator is None:
                             generator = self.cv_generator_factory()
                         generator.generate_pdf(self.personal_info, job, output)
                     if not output.is_file() or not output.with_suffix(".tex").is_file():
-                        raise RuntimeError("CV generation did not produce both PDF and LaTeX files")
-                    SQLiteJobRepository(session).mark_cv_generated(job.id, str(output.resolve()))
+                        raise RuntimeError(
+                            "CV generation did not produce both PDF and LaTeX files"
+                        )
+                    SQLiteJobRepository(session).mark_cv_generated(
+                        job.id, str(output.resolve())
+                    )
                 if not existing:
                     generated_paths.append(str(output))
-                logger.info("Recorded %s CV for job %s | %s", "existing" if existing else "generated", job_id, output)
+                logger.info(
+                    "Recorded %s CV for job %s | %s",
+                    "existing" if existing else "generated",
+                    job_id,
+                    output,
+                )
             except Exception:
                 failed_cv_ids.append(job_id)
                 logger.exception("CV generation failed for job %s", job_id)

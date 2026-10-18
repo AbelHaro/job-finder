@@ -7,6 +7,12 @@ class JobSearch(BaseModel):
     query: str = Field(min_length=1)
     location: str = ""
     limit: int = Field(default=25, ge=1)
+    posted_within_days: int | None = Field(
+        default=None,
+        ge=1,
+        strict=True,
+        description="Only jobs posted in the last N days; None leaves dates unrestricted.",
+    )
 
 
 class Job(BaseModel):

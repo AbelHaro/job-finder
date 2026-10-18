@@ -24,8 +24,34 @@ def main() -> None:
         ranker=GroqJobRankingService(model_name="openai/gpt-oss-120b"),
         personal_info=PERSONAL_INFO,
     ).compile()
-    search = JobSearch(query="junior computer vision", location="Spain", limit=5)
-    workflow.invoke({"search": search})
+    searchs = [
+        JobSearch(
+            query="junior computer vision",
+            location="Spain",
+            posted_within_days=7,
+            limit=50,
+        ),
+        JobSearch(
+            query="junior software engineer",
+            location="Spain",
+            posted_within_days=7,
+            limit=50,
+        ),
+        JobSearch(
+            query="junior embedded systems",
+            location="Spain",
+            posted_within_days=7,
+            limit=50,
+        ),
+        JobSearch(
+            query="junior IoT",
+            location="Spain",
+            posted_within_days=7,
+            limit=50,
+        ),
+    ]
+    for search in searchs:
+        workflow.invoke({"search": search})
 
 
 if __name__ == "__main__":
