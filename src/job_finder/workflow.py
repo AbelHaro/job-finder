@@ -22,6 +22,7 @@ from job_finder.models.stored_job import Job
 from job_finder.repositories.sqlite_job_repository import SQLiteJobRepository
 from job_finder.services.groq_cv_generator_service import GroqCVGeneratorService
 from job_finder.services.job_ranking_service import JobRankingService
+from job_finder.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,10 @@ class WorkflowState:
     jobs: list[CollectedJob] = field(default_factory=list)
     ranked_ids: list[int] = field(default_factory=list)
     generated_paths: list[str] = field(default_factory=list)
+    generated_job_ids: list[int] = field(default_factory=list)
     failed_cv_ids: list[int] = field(default_factory=list)
+    notified_job_ids: list[int] = field(default_factory=list)
+    notification_failed: bool = False
 
 
 @dataclass
@@ -64,6 +68,8 @@ class JobFinderWorkflow:
     output_dir: Path = Path("generated_cvs")
     request_delay: float = 4
     collection_attempts: int = 10
+    match_threshold: float = 0.6
+    notification_service: NotificationService | None = None
 
     def collect_jobs(self, state: WorkflowState) -> dict:
         jobs = []
@@ -130,10 +136,11 @@ class JobFinderWorkflow:
 
     def generate_cvs(self, state: WorkflowState) -> dict:
         generated_paths = []
+        generated_job_ids = []
         failed_cv_ids = []
         with self.sessions() as session:
             job_ids = SQLiteJobRepository(session).get_jobs_pending_cv_ids(
-                min_score=0.6
+                min_score=self.match_threshold
             )
         generator = None
         for job_id in job_ids:
@@ -160,6 +167,7 @@ class JobFinderWorkflow:
                     )
                 if not existing:
                     generated_paths.append(str(output))
+                    generated_job_ids.append(job_id)
                 logger.info(
                     "Recorded %s CV for job %s | %s",
                     "existing" if existing else "generated",
@@ -170,7 +178,39 @@ class JobFinderWorkflow:
                 failed_cv_ids.append(job_id)
                 logger.exception("CV generation failed for job %s", job_id)
             time.sleep(self.request_delay)
-        return {"generated_paths": generated_paths, "failed_cv_ids": failed_cv_ids}
+        return {
+            "generated_paths": generated_paths,
+            "generated_job_ids": generated_job_ids,
+            "failed_cv_ids": failed_cv_ids,
+        }
+
+    def notify_jobs(self, state: WorkflowState) -> dict:
+        if self.notification_service is None:
+            logger.info(
+                "Telegram notifications disabled; configure TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID."
+            )
+            return {"notified_job_ids": [], "notification_failed": False}
+        if not state.generated_job_ids:
+            logger.info("No CVs generated this run; skipping job notifications.")
+            return {"notified_job_ids": [], "notification_failed": False}
+        try:
+            with self.sessions() as session:
+                jobs = SQLiteJobRepository(session).get_generated_jobs_by_ids(
+                    state.generated_job_ids, min_score=self.match_threshold
+                )
+                if not jobs:
+                    return {"notified_job_ids": [], "notification_failed": False}
+                self.notification_service.send_jobs(
+                    jobs, min_score=self.match_threshold
+                )
+                job_ids = [job.id for job in jobs]
+            logger.info("Sent job notifications for %s qualifying jobs.", len(job_ids))
+            return {"notified_job_ids": job_ids, "notification_failed": False}
+        except Exception:
+            logger.exception(
+                "Job notification failed; saved jobs and CVs are preserved."
+            )
+            return {"notified_job_ids": [], "notification_failed": True}
 
     def compile(self) -> CompiledStateGraph:
         graph = StateGraph(WorkflowState)
@@ -178,9 +218,11 @@ class JobFinderWorkflow:
         graph.add_node("store_jobs", self.store_jobs)
         graph.add_node("rank_jobs", self.rank_jobs)
         graph.add_node("generate_cvs", self.generate_cvs)
+        graph.add_node("notify_jobs", self.notify_jobs)
         graph.add_edge(START, "collect_jobs")
         graph.add_edge("collect_jobs", "store_jobs")
         graph.add_edge("store_jobs", "rank_jobs")
         graph.add_edge("rank_jobs", "generate_cvs")
-        graph.add_edge("generate_cvs", END)
+        graph.add_edge("generate_cvs", "notify_jobs")
+        graph.add_edge("notify_jobs", END)
         return graph.compile()

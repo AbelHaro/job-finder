@@ -22,6 +22,8 @@ flowchart TD
     Compile -->|Failure| Retry
     Record --> Next[Continue with the next qualifying job]
     Retry --> Next
+    Next --> Notify[Send newly generated jobs and CV paths to Telegram]
+    Notify --> End[End workflow]
 ```
 
 ## Setup
@@ -70,6 +72,17 @@ Completed CVs are tracked in SQLite and skipped on later runs. Failed CVs are
 retried next run. To regenerate, reset the job's `cv_generated`,
 `cv_generated_at` and `cv_path` fields and remove its existing PDF/source pair.
 Review generated CVs before submitting.
+
+## Telegram notifications
+
+Create a bot with [BotFather](https://t.me/BotFather), open a chat with your bot
+and send `/start`. Find your chat's `message.chat.id` using the Bot API's
+[getUpdates method](https://core.telegram.org/bots/api#getupdates), then set:
+
+```dotenv
+TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_CHAT_ID=your-chat-id
+```
 
 ## Development
 

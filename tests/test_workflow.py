@@ -95,7 +95,7 @@ class WorkflowTests(unittest.TestCase):
             )
         self.assertEqual(
             [next(iter(update)) for update in updates],
-            ["collect_jobs", "store_jobs", "rank_jobs", "generate_cvs"],
+            ["collect_jobs", "store_jobs", "rank_jobs", "generate_cvs", "notify_jobs"],
         )
         self.assertEqual(updates[2]["rank_jobs"]["ranked_ids"], [5])
         self.assertEqual(updates[3]["generate_cvs"]["failed_cv_ids"], [2])
@@ -204,6 +204,74 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue(job.cv_generated)
             self.assertEqual(job.cv_path, "/tmp/cv.pdf")
             self.assertIsNotNone(job.cv_generated_at)
+
+    def test_notifications_are_last_and_include_committed_cv_paths(self) -> None:
+        self.save([0.59, 0.6, 0.9])
+        notifier = Mock()
+        self.workflow.notification_service = notifier
+
+        def check_jobs(jobs, min_score):
+            self.assertEqual([job.id for job in jobs], [3, 2])
+            self.assertEqual(min_score, 0.6)
+            for job in jobs:
+                self.assertTrue(job.cv_generated)
+                assert job.cv_path is not None
+                self.assertTrue(Path(job.cv_path).is_file())
+                with self.sessions() as session:
+                    self.assertTrue(self.get_job(session, job.id).cv_generated)
+
+        notifier.send_jobs.side_effect = check_jobs
+        updates = list(
+            self.workflow.compile().stream(
+                {"search": self.search}, stream_mode="updates"
+            )
+        )
+        self.assertEqual(next(iter(updates[-1])), "notify_jobs")
+        self.assertEqual(updates[-1]["notify_jobs"]["notified_job_ids"], [3, 2])
+        notifier.send_jobs.assert_called_once()
+        self.assertEqual(updates[-2]["generate_cvs"]["generated_job_ids"], [2, 3])
+        result = self.workflow.compile().invoke({"search": self.search})
+        self.assertEqual(result["generated_job_ids"], [])
+        self.assertEqual(result["notified_job_ids"], [])
+        notifier.send_jobs.assert_called_once()
+
+    def test_notifications_exclude_existing_adopted_and_failed_cvs(self) -> None:
+        self.save([0.6, 0.8, 0.9, 0.7])
+        with self.sessions.begin() as session:
+            SQLiteJobRepository(session).mark_cv_generated(2, "/tmp/old_cv.pdf")
+        legacy = self.workflow.output_dir / "3" / cv_filename("Python Engineer")
+        legacy.parent.mkdir()
+        legacy.write_bytes(b"existing")
+        legacy.with_suffix(".tex").write_text("existing")
+
+        def generate(personal_info: PersonalInfo, job: Job, output: Path) -> Path:
+            if job.id == 4:
+                raise RuntimeError("Generation failed")
+            return self.write_cv(personal_info, job, output)
+
+        self.generator.generate_pdf.side_effect = generate
+        notifier = Mock()
+        self.workflow.notification_service = notifier
+        with self.assertLogs("job_finder.workflow", level="ERROR"):
+            result = self.workflow.compile().invoke({"search": self.search})
+        self.assertEqual(result["generated_job_ids"], [1])
+        self.assertEqual(result["notified_job_ids"], [1])
+        self.assertEqual(result["failed_cv_ids"], [4])
+        call = notifier.send_jobs.call_args
+        assert call is not None
+        self.assertEqual([job.id for job in call.args[0]], [1])
+
+    def test_notification_failure_preserves_successful_cvs(self) -> None:
+        self.save([0.6])
+        notifier = Mock()
+        notifier.send_jobs.side_effect = RuntimeError("Telegram unavailable")
+        self.workflow.notification_service = notifier
+        with self.assertLogs("job_finder.workflow", level="ERROR"):
+            result = self.workflow.compile().invoke({"search": self.search})
+        self.assertTrue(result["notification_failed"])
+        self.assertEqual(len(result["generated_paths"]), 1)
+        with self.sessions() as session:
+            self.assertTrue(self.get_job(session, 1).cv_generated)
 
     def test_ranking_failure_preserves_previously_committed_score(self) -> None:
         self.save([None, None])

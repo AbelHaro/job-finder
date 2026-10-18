@@ -56,7 +56,9 @@ class SQLiteJobRepository(JobRepository):
     def get_unseen_jobs(self) -> list[Job]:
         """Return jobs with no match score, oldest first."""
         statement = (
-            select(Job).where(Job.match_score.is_(None)).order_by(Job.first_seen_at, Job.id)
+            select(Job)
+            .where(Job.match_score.is_(None))
+            .order_by(Job.first_seen_at, Job.id)
         )
         return list(self.session.scalars(statement).all())
 
@@ -65,6 +67,14 @@ class SQLiteJobRepository(JobRepository):
             select(Job.id)
             .where(Job.match_score >= min_score, Job.cv_generated.is_(False))
             .order_by(Job.id)
+        )
+        return list(self.session.scalars(statement).all())
+
+    def get_generated_jobs_by_ids(self, job_ids: list[int], min_score: float) -> list[Job]:
+        statement = (
+            select(Job)
+            .where(Job.id.in_(job_ids), Job.match_score >= min_score, Job.cv_generated.is_(True))
+            .order_by(Job.match_score.desc(), Job.id)
         )
         return list(self.session.scalars(statement).all())
 

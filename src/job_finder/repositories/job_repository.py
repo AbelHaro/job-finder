@@ -22,6 +22,10 @@ class JobRepository(ABC):
         """Return IDs with a score at least min_score and no generated CV, ordered by ID."""
 
     @abstractmethod
+    def get_generated_jobs_by_ids(self, job_ids: list[int], min_score: float) -> list[Job]:
+        """Return qualifying jobs with generated CVs from these IDs, highest score first."""
+
+    @abstractmethod
     def save_match_score(self, job_id: int, score: float) -> None:
         """Save a match score between zero and one for an existing job."""
 
