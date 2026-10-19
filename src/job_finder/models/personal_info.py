@@ -38,6 +38,7 @@ class PersonalInfo:
     languages: tuple[str, ...]
     interests: tuple[str, ...]
     location: str = ""
+    ranking_constraints: tuple[str, ...] = ()
 
     def to_prompt(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, indent=2)

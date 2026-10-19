@@ -94,7 +94,7 @@ class WorkflowTests(unittest.TestCase):
             )
         self.assertEqual(
             [next(iter(update)) for update in updates],
-            ["collect_jobs", "store_jobs", "rank_jobs", "generate_cvs", "notify_jobs"],
+            ["collect_jobs", "store_jobs", "rank_jobs", "generate_cvs"],
         )
         self.assertEqual(updates[2]["rank_jobs"]["ranked_ids"], [5])
         self.assertEqual(updates[3]["generate_cvs"]["failed_cv_ids"], [2])
@@ -204,13 +204,21 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(job.cv_path, "/tmp/cv.pdf")
             self.assertIsNotNone(job.cv_generated_at)
 
-    def test_notifications_are_last_and_include_committed_cv_paths(self) -> None:
+    def test_each_cv_is_committed_and_notified_before_generating_the_next(self) -> None:
         self.save([0.59, 0.6, 0.9])
         notifier = Mock()
         self.workflow.notification_service = notifier
+        events = []
+
+        def generate(personal_info, job, output):
+            events.append(("generate", job.id))
+            return self.write_cv(personal_info, job, output)
+
+        self.generator.generate_pdf.side_effect = generate
 
         def check_jobs(jobs, min_score):
-            self.assertEqual([job.id for job in jobs], [3, 2])
+            self.assertEqual(len(jobs), 1)
+            events.append(("notify", jobs[0].id))
             self.assertEqual(min_score, 0.6)
             for job in jobs:
                 self.assertTrue(job.cv_generated)
@@ -225,14 +233,16 @@ class WorkflowTests(unittest.TestCase):
                 {"search": self.search}, stream_mode="updates"
             )
         )
-        self.assertEqual(next(iter(updates[-1])), "notify_jobs")
-        self.assertEqual(updates[-1]["notify_jobs"]["notified_job_ids"], [3, 2])
-        notifier.send_jobs.assert_called_once()
-        self.assertEqual(updates[-2]["generate_cvs"]["generated_job_ids"], [2, 3])
+        self.assertEqual(events, [
+            ("generate", 2), ("notify", 2), ("generate", 3), ("notify", 3),
+        ])
+        self.assertEqual(updates[-1]["generate_cvs"]["notified_job_ids"], [2, 3])
+        self.assertEqual(notifier.send_jobs.call_count, 2)
+        self.assertEqual(updates[-1]["generate_cvs"]["generated_job_ids"], [2, 3])
         result = self.workflow.compile().invoke({"search": self.search})
         self.assertEqual(result["generated_job_ids"], [])
         self.assertEqual(result["notified_job_ids"], [])
-        notifier.send_jobs.assert_called_once()
+        self.assertEqual(notifier.send_jobs.call_count, 2)
 
     def test_notifications_exclude_existing_adopted_and_failed_cvs(self) -> None:
         self.save([0.6, 0.8, 0.9, 0.7])
@@ -261,16 +271,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual([job.id for job in call.args[0]], [1])
 
     def test_notification_failure_preserves_successful_cvs(self) -> None:
-        self.save([0.6])
+        self.save([0.6, 0.8])
         notifier = Mock()
-        notifier.send_jobs.side_effect = RuntimeError("Telegram unavailable")
+        notifier.send_jobs.side_effect = [RuntimeError("Telegram unavailable"), None]
         self.workflow.notification_service = notifier
         with self.assertLogs("job_finder.workflow", level="ERROR"):
             result = self.workflow.compile().invoke({"search": self.search})
         self.assertTrue(result["notification_failed"])
-        self.assertEqual(len(result["generated_paths"]), 1)
+        self.assertEqual(len(result["generated_paths"]), 2)
+        self.assertEqual(result["notified_job_ids"], [2])
+        self.assertEqual(result["failed_cv_ids"], [])
+        self.assertEqual(notifier.send_jobs.call_count, 2)
         with self.sessions() as session:
             self.assertTrue(self.get_job(session, 1).cv_generated)
+            self.assertTrue(self.get_job(session, 2).cv_generated)
 
     def test_ranking_failure_preserves_previously_committed_score(self) -> None:
         self.save([None, None])

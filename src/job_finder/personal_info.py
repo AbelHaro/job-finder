@@ -17,6 +17,18 @@ PERSONAL_INFO = PersonalInfo(
     ),
     summary="Computer Engineer with a background in software development, computer vision, embedded systems and IoT.",
     location="Altea / Valencia, Spain (for job ranking only; omit residence from the CV)",
+    ranking_constraints=(
+        (
+            "For job ranking only: I have completed my degree and cannot undertake internships, "
+            "becas de prácticas, or placements requiring student status or a university agreement. "
+            "Exclude internship offers even if paid or advertised to graduates. Regular employment "
+            "contracts and graduate programmes without these requirements remain eligible."
+        ),
+        "For job ranking only: my documented work experience consists of the internships listed "
+        "below (less than one year in total). Academic and personal projects demonstrate skills, "
+        "but must not be counted as additional years of professional employment. Do not infer "
+        "continued employment after the listed end dates.",
+    ),
     experience=(
         PersonalEntry(
             title="DISCA Department — Universitat Politècnica de València",

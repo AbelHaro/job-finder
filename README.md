@@ -2,8 +2,8 @@
 
 Collect LinkedIn jobs, rank them against your profile, and generate tailored
 LaTeX CVs for matches scoring **0.6 or higher**. LangGraph coordinates the
-workflow; Groq's `openai/gpt-oss-120b` handles ranking and tailoring through
-the shared LangChain services.
+workflow; Codex CLI handles ranking and tailoring through the shared LangChain
+services using your ChatGPT subscription.
 
 ## Workflow
 
@@ -37,10 +37,20 @@ uv sync
 cp .env.example .env
 ```
 
-Add your Groq key to `.env`:
+Install [Codex CLI](https://developers.openai.com/codex/cli), sign in with
+ChatGPT for subscription access, and check the login:
+
+```bash
+npm install -g @openai/codex
+codex login
+codex login status
+```
+
+Optional settings in `.env`:
 
 ```dotenv
-GROQ_API_KEY=your-key
+# CODEX_MODEL=your-supported-codex-model
+# CODEX_TIMEOUT=300
 # Optional; defaults to jobs.sqlite3 in the project root.
 # DATABASE_URL=sqlite:///jobs.sqlite3
 ```
@@ -59,7 +69,13 @@ uv run job-finder
 The workflow collects jobs, stores them in SQLite, ranks unscored jobs, and
 creates a PDF plus editable `.tex` source for qualifying matches. Each CV
 includes up to three relevant projects with descriptions and technologies.
-Your profile and job descriptions are sent to Groq.
+Your profile and job descriptions are sent to OpenAI through Codex CLI.
+Requests force ChatGPT authentication and remove API-key environment variables;
+they consume your subscription's Codex allowance and remain subject to its limits.
+No API key is required. The adapter uses isolated temporary directories, read-only
+sandboxing, ephemeral sessions and JSON Schema output validated with Pydantic.
+It ignores user Codex configuration while retaining Codex's login store.
+Set `CODEX_MODEL` to choose a model available to your subscription.
 
 Files are saved under:
 

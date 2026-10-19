@@ -137,6 +137,8 @@ class JobFinderWorkflow:
         generated_paths = []
         generated_job_ids = []
         failed_cv_ids = []
+        notified_job_ids = []
+        notification_failed = False
         with self.sessions() as session:
             job_ids = SQLiteJobRepository(session).get_jobs_pending_cv_ids(
                 min_score=self.match_threshold
@@ -166,6 +168,9 @@ class JobFinderWorkflow:
                 if not existing:
                     generated_paths.append(str(output))
                     generated_job_ids.append(job_id)
+                    notification = self.notify_job(job_id)
+                    notified_job_ids.extend(notification["notified_job_ids"])
+                    notification_failed |= notification["notification_failed"]
                 logger.info(
                     "Recorded %s CV for job %s | %s",
                     "existing" if existing else "generated",
@@ -180,21 +185,21 @@ class JobFinderWorkflow:
             "generated_paths": generated_paths,
             "generated_job_ids": generated_job_ids,
             "failed_cv_ids": failed_cv_ids,
+            "notified_job_ids": notified_job_ids,
+            "notification_failed": notification_failed,
         }
 
-    def notify_jobs(self, state: WorkflowState) -> dict:
+    def notify_job(self, job_id: int) -> dict:
+        """Notify after the CV transaction commits, before generating the next CV."""
         if self.notification_service is None:
             logger.info(
                 "Telegram notifications disabled; configure TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID."
             )
             return {"notified_job_ids": [], "notification_failed": False}
-        if not state.generated_job_ids:
-            logger.info("No CVs generated this run; skipping job notifications.")
-            return {"notified_job_ids": [], "notification_failed": False}
         try:
             with self.sessions() as session:
                 jobs = SQLiteJobRepository(session).get_generated_jobs_by_ids(
-                    state.generated_job_ids, min_score=self.match_threshold
+                    [job_id], min_score=self.match_threshold
                 )
                 if not jobs:
                     return {"notified_job_ids": [], "notification_failed": False}
@@ -216,11 +221,9 @@ class JobFinderWorkflow:
         graph.add_node("store_jobs", self.store_jobs)
         graph.add_node("rank_jobs", self.rank_jobs)
         graph.add_node("generate_cvs", self.generate_cvs)
-        graph.add_node("notify_jobs", self.notify_jobs)
         graph.add_edge(START, "collect_jobs")
         graph.add_edge("collect_jobs", "store_jobs")
         graph.add_edge("store_jobs", "rank_jobs")
         graph.add_edge("rank_jobs", "generate_cvs")
-        graph.add_edge("generate_cvs", "notify_jobs")
-        graph.add_edge("notify_jobs", END)
+        graph.add_edge("generate_cvs", END)
         return graph.compile()
