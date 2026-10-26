@@ -1,6 +1,7 @@
 """LangChain model backed by Codex CLI's ChatGPT subscription login."""
 
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -12,6 +13,12 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+
+class CodexRequestTimeout(TimeoutError, RuntimeError):
+    """A Codex request exhausted its bounded timeout retries."""
 
 
 def strict_schema(value: Any) -> Any:
@@ -34,7 +41,8 @@ class CodexChatModel(BaseChatModel):
 
     model_name: str | None = None
     executable: str = "codex"
-    timeout: float = Field(default=300, gt=0)
+    timeout: float = Field(default=30, gt=0)
+    timeout_retries: int = Field(default=1, ge=0)
 
     @property
     def _llm_type(self) -> str:
@@ -86,23 +94,35 @@ class CodexChatModel(BaseChatModel):
                 )
                 command.extend(["--output-schema", str(schema_path)])
             command.append("-")
-            try:
-                result = subprocess.run(
-                    command,
-                    input=prompt,
-                    text=True,
-                    capture_output=True,
-                    timeout=self.timeout,
-                    env=env,
-                    cwd=directory,
-                    check=False,
-                )
-            except FileNotFoundError as error:
-                raise RuntimeError(
-                    "Codex CLI is missing. Install it and run `codex login`."
-                ) from error
-            except subprocess.TimeoutExpired as error:
-                raise RuntimeError("Codex request timed out.") from error
+            for attempt in range(self.timeout_retries + 1):
+                # A timed-out attempt may have left a partial final response.
+                output.unlink(missing_ok=True)
+                try:
+                    result = subprocess.run(
+                        command,
+                        input=prompt,
+                        text=True,
+                        capture_output=True,
+                        timeout=self.timeout,
+                        env=env,
+                        cwd=directory,
+                        check=False,
+                    )
+                    break
+                except FileNotFoundError as error:
+                    raise RuntimeError(
+                        "Codex CLI is missing. Install it and run `codex login`."
+                    ) from error
+                except subprocess.TimeoutExpired as error:
+                    if attempt == self.timeout_retries:
+                        raise CodexRequestTimeout(
+                            f"Codex request timed out after {attempt + 1} attempts "
+                            f"({self.timeout:g}s per attempt)."
+                        ) from error
+                    logger.warning(
+                        "Codex request timed out after %ss; retrying (%s/%s).",
+                        self.timeout, attempt + 1, self.timeout_retries,
+                    )
             if result.returncode:
                 # CLI diagnostics may contain candidate data; do not include them in logs.
                 raise RuntimeError(

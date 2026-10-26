@@ -75,9 +75,7 @@ class TelegramNotificationService(NotificationService):
         self.request_delay = request_delay
 
     def send_jobs(self, jobs: Sequence[Job], min_score: float) -> None:
-        messages = [
-            f"Job finder: {len(jobs)} matching jobs (score >= {min_score:.0%})."
-        ]
+        messages = []
         for job in jobs:
             messages.extend(split_message(format_job(job)))
         for index, message in enumerate(messages):

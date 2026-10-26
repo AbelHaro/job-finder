@@ -37,6 +37,7 @@ class Job(Base):
     )
     cv_generated_at: Mapped[datetime | None] = mapped_column(DateTime())
     cv_path: Mapped[str | None] = mapped_column(Text)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime())
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
     company: Mapped[str] = mapped_column(Text)

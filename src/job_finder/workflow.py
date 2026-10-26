@@ -6,6 +6,7 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
@@ -50,6 +51,7 @@ class WorkflowState:
     search: JobSearch
     jobs: list[CollectedJob] = field(default_factory=list)
     ranked_ids: list[int] = field(default_factory=list)
+    failed_ranking_ids: list[int] = field(default_factory=list)
     generated_paths: list[str] = field(default_factory=list)
     generated_job_ids: list[int] = field(default_factory=list)
     failed_cv_ids: list[int] = field(default_factory=list)
@@ -67,8 +69,9 @@ class JobFinderWorkflow:
     output_dir: Path = Path("generated_cvs")
     request_delay: float = 4
     collection_attempts: int = 10
-    match_threshold: float = 0.6
+    match_threshold: float = 0.5
     notification_service: NotificationService | None = None
+    cv_generation_enabled: bool = False
 
     def collect_jobs(self, state: WorkflowState) -> dict:
         jobs = []
@@ -96,6 +99,7 @@ class JobFinderWorkflow:
 
     def rank_jobs(self, state: WorkflowState) -> dict:
         ranked_ids = []
+        failed_ranking_ids = []
         # Each score commits separately so a later API failure preserves progress.
         with self.sessions() as session:
             repository = SQLiteJobRepository(session)
@@ -107,16 +111,25 @@ class JobFinderWorkflow:
                     job = session.get(Job, job_id)
                     if job is None or job.match_score is not None:
                         continue
-                    score = self.ranker.rank_job(
-                        job, personal_info=self.personal_info.to_prompt()
-                    )
+                    try:
+                        score = self.ranker.rank_job(
+                            job, personal_info=self.personal_info.to_prompt()
+                        )
+                    except TimeoutError:
+                        failed_ranking_ids.append(job_id)
+                        logger.warning(
+                            "Ranking timed out for job %s; leaving it unscored "
+                            "for a later run.", job_id,
+                        )
+                        time.sleep(self.request_delay)
+                        continue
                     repository.save_match_score(job.id, score)
                     logger.info(
                         "Ranked job %s | %s | score: %.2f", job.id, job.title, score
                     )
                 ranked_ids.append(job_id)
                 time.sleep(self.request_delay)
-        return {"ranked_ids": ranked_ids}
+        return {"ranked_ids": ranked_ids, "failed_ranking_ids": failed_ranking_ids}
 
     def adopt_existing_cv(self, job: Job, output: Path) -> bool:
         """Reuse completed files, including the previous numeric-folder layout."""
@@ -189,7 +202,23 @@ class JobFinderWorkflow:
             "notification_failed": notification_failed,
         }
 
-    def notify_job(self, job_id: int) -> dict:
+    def notify_ranked_jobs(self, state: WorkflowState) -> dict:
+        """Send newly analysed matches while CV generation is paused."""
+        notified_job_ids = []
+        notification_failed = False
+        for job_id in state.ranked_ids:
+            result = self.notify_job(job_id, require_cv=False)
+            notified_job_ids.extend(result["notified_job_ids"])
+            notification_failed |= result["notification_failed"]
+        return {
+            "generated_paths": [],
+            "generated_job_ids": [],
+            "failed_cv_ids": [],
+            "notified_job_ids": notified_job_ids,
+            "notification_failed": notification_failed,
+        }
+
+    def notify_job(self, job_id: int, *, require_cv: bool = True) -> dict:
         """Notify after the CV transaction commits, before generating the next CV."""
         if self.notification_service is None:
             logger.info(
@@ -198,15 +227,28 @@ class JobFinderWorkflow:
             return {"notified_job_ids": [], "notification_failed": False}
         try:
             with self.sessions() as session:
-                jobs = SQLiteJobRepository(session).get_generated_jobs_by_ids(
-                    [job_id], min_score=self.match_threshold
-                )
+                if require_cv:
+                    jobs = SQLiteJobRepository(session).get_generated_jobs_by_ids(
+                        [job_id], min_score=self.match_threshold
+                    )
+                else:
+                    job = session.get(Job, job_id)
+                    jobs = (
+                        [job] if job is not None and job.match_score is not None
+                        and job.match_score >= self.match_threshold else []
+                    )
+                jobs = [job for job in jobs if job.notified_at is None]
                 if not jobs:
                     return {"notified_job_ids": [], "notification_failed": False}
                 self.notification_service.send_jobs(
                     jobs, min_score=self.match_threshold
                 )
                 job_ids = [job.id for job in jobs]
+                for job in jobs:
+                    job.notified_at = datetime.now(timezone.utc)
+                session.commit()
+                for job in jobs:
+                    session.refresh(job)
             logger.info("Sent job notifications for %s qualifying jobs.", len(job_ids))
             return {"notified_job_ids": job_ids, "notification_failed": False}
         except Exception:
@@ -221,9 +263,14 @@ class JobFinderWorkflow:
         graph.add_node("store_jobs", self.store_jobs)
         graph.add_node("rank_jobs", self.rank_jobs)
         graph.add_node("generate_cvs", self.generate_cvs)
+        graph.add_node("notify_ranked_jobs", self.notify_ranked_jobs)
         graph.add_edge(START, "collect_jobs")
         graph.add_edge("collect_jobs", "store_jobs")
         graph.add_edge("store_jobs", "rank_jobs")
-        graph.add_edge("rank_jobs", "generate_cvs")
-        graph.add_edge("generate_cvs", END)
+        if self.cv_generation_enabled:
+            graph.add_edge("rank_jobs", "generate_cvs")
+            graph.add_edge("generate_cvs", END)
+        else:
+            graph.add_edge("rank_jobs", "notify_ranked_jobs")
+            graph.add_edge("notify_ranked_jobs", END)
         return graph.compile()

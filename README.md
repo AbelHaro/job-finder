@@ -50,7 +50,7 @@ Optional settings in `.env`:
 
 ```dotenv
 # CODEX_MODEL=your-supported-codex-model
-# CODEX_TIMEOUT=300
+# CODEX_TIMEOUT=30
 # Optional; defaults to jobs.sqlite3 in the project root.
 # DATABASE_URL=sqlite:///jobs.sqlite3
 ```

@@ -29,7 +29,7 @@ def main() -> None:
     model = CodexChatModel(
         model_name=os.getenv("CODEX_MODEL") or None,
         executable=os.getenv("CODEX_EXECUTABLE", "codex"),
-        timeout=float(os.getenv("CODEX_TIMEOUT", "300")),
+        timeout=float(os.getenv("CODEX_TIMEOUT", "30")),
     )
     notifier = TelegramNotificationService()
     runner = JobFinderWorkflow(
@@ -39,41 +39,50 @@ def main() -> None:
         personal_info=PERSONAL_INFO,
         cv_generator=LangChainCVGeneratorService(model),
         notification_service=notifier,
+        cv_generation_enabled=False,
     )
     workflow = runner.compile()
-    searchs = [
-        JobSearch(
-            query="junior computer vision",
-            location="Spain",
-            posted_within_days=1,
-            limit=20,
-        ),
-        JobSearch(
-            query="junior software engineer",
-            location="Spain",
-            posted_within_days=1,
-            limit=20,
-        ),
-        JobSearch(
-            query="junior embedded systems",
-            location="Spain",
-            posted_within_days=1,
-            limit=20,
-        ),
-        JobSearch(
-            query="junior IoT",
-            location="Spain",
-            posted_within_days=1,
-            limit=20,
-        ),
-        JobSearch(
-            query="entry level python",
-            location="Spain",
-            posted_within_days=1,
-            limit=20,
-        ),
+    queries = [
+        # Software development and backend.
+        "junior software engineer",
+        "graduate software engineer",
+        "desarrollador software junior",
+        "entry level python",
+        "junior python developer",
+        "junior backend developer",
+        "desarrollador backend junior",
+        "junior golang developer",
+        "junior C++ developer",
+        "junior typescript developer",
+        # Computer vision and applied machine learning.
+        "junior computer vision",
+        "computer vision engineer",
+        "ingeniero visión artificial junior",
+        "junior machine learning engineer",
+        "graduate machine learning engineer",
+        # Embedded software, connected devices and industrial systems.
+        "junior embedded systems",
+        "junior embedded software engineer",
+        "junior firmware engineer",
+        "ingeniero software embebido junior",
+        "junior IoT",
+        "IoT software engineer",
+        "ingeniero IoT junior",
+        "junior robotics software engineer",
+        # Infrastructure roles using Linux, containers and cloud platforms.
+        "junior cloud engineer",
+        "junior devops engineer",
     ]
-    for search in searchs:
+    searches = [
+        JobSearch(
+            query=query,
+            location="Spain",
+            posted_within_days=1,
+            limit=20,
+        )
+        for query in queries
+    ]
+    for search in searches:
         workflow.invoke({"search": search})
 
 

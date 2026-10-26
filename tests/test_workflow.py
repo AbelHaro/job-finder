@@ -39,6 +39,8 @@ class WorkflowTests(unittest.TestCase):
             output_dir=Path(self.directory.name),
             request_delay=0,
             collection_attempts=2,
+            cv_generation_enabled=True,
+            match_threshold=0.6,
         )
         self.search = JobSearch(query="Python", limit=5)
 
@@ -48,6 +50,27 @@ class WorkflowTests(unittest.TestCase):
         output.write_bytes(b"%PDF-example")
         output.with_suffix(".tex").write_text("example")
         return output
+
+    def test_paused_cvs_notify_new_matches_without_generating(self) -> None:
+        self.workflow.cv_generation_enabled = False
+        self.workflow.match_threshold = 0.5
+        self.save([None, None, 0.9])
+        self.ranker.rank_job.side_effect = [0.5, 0.49]
+        notifier = Mock()
+        self.workflow.notification_service = notifier
+        result = self.workflow.compile().invoke({"search": self.search})
+        self.assertEqual(result["notified_job_ids"], [1])
+        self.assertEqual(result["generated_paths"], [])
+        self.generator.generate_pdf.assert_not_called()
+        jobs = notifier.send_jobs.call_args.args[0]
+        self.assertEqual([job.id for job in jobs], [1])
+        self.assertFalse(jobs[0].cv_generated)
+        result = self.workflow.compile().invoke({"search": self.search})
+        self.assertEqual(result["notified_job_ids"], [])
+        self.assertEqual(notifier.send_jobs.call_count, 1)
+        duplicate = self.workflow.notify_job(1, require_cv=False)
+        self.assertEqual(duplicate["notified_job_ids"], [])
+        self.assertEqual(notifier.send_jobs.call_count, 1)
 
     def get_job(self, session: Session, job_id: int) -> Job:
         job = session.get(Job, job_id)
@@ -285,6 +308,24 @@ class WorkflowTests(unittest.TestCase):
         with self.sessions() as session:
             self.assertTrue(self.get_job(session, 1).cv_generated)
             self.assertTrue(self.get_job(session, 2).cv_generated)
+
+    def test_ranking_timeout_continues_and_is_retried_next_run(self) -> None:
+        self.save([None, None, None])
+        self.ranker.rank_job.side_effect = [0.6, TimeoutError("timeout"), 0.7]
+        graph = self.workflow.compile()
+        with self.assertLogs("job_finder.workflow", level="WARNING"):
+            result = graph.invoke({"search": self.search})
+        self.assertEqual(result["ranked_ids"], [1, 3])
+        self.assertEqual(result["failed_ranking_ids"], [2])
+        self.assertEqual(self.generated_job_ids, [1, 3])
+        with self.sessions() as session:
+            self.assertEqual(self.get_job(session, 1).match_score, 0.6)
+            self.assertIsNone(self.get_job(session, 2).match_score)
+            self.assertEqual(self.get_job(session, 3).match_score, 0.7)
+        self.ranker.rank_job.side_effect = [0.8]
+        result = graph.invoke({"search": self.search})
+        self.assertEqual(result["ranked_ids"], [2])
+        self.assertEqual(result["failed_ranking_ids"], [])
 
     def test_ranking_failure_preserves_previously_committed_score(self) -> None:
         self.save([None, None])

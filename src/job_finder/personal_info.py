@@ -19,10 +19,11 @@ PERSONAL_INFO = PersonalInfo(
     location="Altea / Valencia, Spain (for job ranking only; omit residence from the CV)",
     ranking_constraints=(
         (
-            "For job ranking only: I have completed my degree and cannot undertake internships, "
-            "becas de prácticas, or placements requiring student status or a university agreement. "
-            "Exclude internship offers even if paid or advertised to graduates. Regular employment "
-            "contracts and graduate programmes without these requirements remain eligible."
+            "For job ranking only: prioritize software developer jobs where programming is a main duty. "
+            "Include development internships, becas, prácticas, trainee roles and graduate programmes "
+            "even if I cannot undertake them or meet student/university agreement requirements. "
+            "I have completed my degree; flag placement eligibility limitations in the reasoning, "
+            "but do not exclude offers or lower scores solely for those limitations."
         ),
         "For job ranking only: my documented work experience consists of the internships listed "
         "below (less than one year in total). Academic and personal projects demonstrate skills, "

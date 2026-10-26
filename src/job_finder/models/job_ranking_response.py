@@ -16,11 +16,9 @@ class JobRankingServiceResponse(BaseModel):
     )
 
     def adjusted_score(self) -> float:
-        if self.ineligible_placement:
-            return 0.0
         caps = {
             "meets": 1.0,
-            "minor_gap": 0.59,
+            "minor_gap": 0.79,
             "major_gap": 0.39,
             "senior_gap": 0.29,
             "unspecified": 0.79,
