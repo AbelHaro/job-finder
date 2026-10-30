@@ -15,6 +15,7 @@ from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.orm import Session, sessionmaker
 
 from job_finder.collectors.base_collector import BaseCollector
+from job_finder.company_filters import is_excluded_company
 from job_finder.models.job import Job as CollectedJob
 from job_finder.models.job import JobSearch
 from job_finder.models.personal_info import PersonalInfo
@@ -93,8 +94,11 @@ class JobFinderWorkflow:
         return {"jobs": jobs}
 
     def store_jobs(self, state: WorkflowState) -> dict:
+        jobs = [job for job in state.jobs if not is_excluded_company(job.company)]
+        if len(jobs) != len(state.jobs):
+            logger.info("Excluded %s promotional listings.", len(state.jobs) - len(jobs))
         with self.sessions.begin() as session:
-            SQLiteJobRepository(session).save_jobs(state.jobs)
+            SQLiteJobRepository(session).save_jobs(jobs)
         return {}
 
     def rank_jobs(self, state: WorkflowState) -> dict:

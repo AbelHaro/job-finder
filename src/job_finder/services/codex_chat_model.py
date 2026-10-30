@@ -40,6 +40,7 @@ class CodexChatModel(BaseChatModel):
     """Run isolated, non-interactive requests without reading login tokens."""
 
     model_name: str | None = None
+    reasoning_effort: str | None = None
     executable: str = "codex"
     timeout: float = Field(default=30, gt=0)
     timeout_retries: int = Field(default=1, ge=0)
@@ -87,6 +88,13 @@ class CodexChatModel(BaseChatModel):
             ]
             if self.model_name:
                 command.extend(["--model", self.model_name])
+            if self.reasoning_effort:
+                command.extend(
+                    [
+                        "-c",
+                        f"model_reasoning_effort={json.dumps(self.reasoning_effort)}",
+                    ]
+                )
             if schema is not None:
                 schema_path = Path(directory) / "schema.json"
                 schema_path.write_text(
@@ -121,7 +129,9 @@ class CodexChatModel(BaseChatModel):
                         ) from error
                     logger.warning(
                         "Codex request timed out after %ss; retrying (%s/%s).",
-                        self.timeout, attempt + 1, self.timeout_retries,
+                        self.timeout,
+                        attempt + 1,
+                        self.timeout_retries,
                     )
             if result.returncode:
                 # CLI diagnostics may contain candidate data; do not include them in logs.

@@ -1,5 +1,6 @@
 """Run the LangGraph job collection, ranking and CV workflow."""
 
+import argparse
 import logging
 import os
 
@@ -19,15 +20,45 @@ from job_finder.services.telegram_notification_service import (
 )
 from job_finder.workflow import JobFinderWorkflow
 
+MODEL_CHOICES = (
+    "gpt-6.1-sol",
+    "gpt-6-astra",
+    "gpt-6.1-terra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+)
+
 
 def main() -> None:
     load_dotenv()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--model",
+        choices=MODEL_CHOICES,
+        default=os.getenv("CODEX_MODEL") or "gpt-6.1-terra",
+        help="Codex model (default: CODEX_MODEL or gpt-6.1-terra)",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        default="low",
+        choices=("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"),
+        help="Reasoning effort, subject to model support (default: low)",
+    )
+    args = parser.parse_args()
+    if args.model not in MODEL_CHOICES:
+        parser.error(
+            f"invalid CODEX_MODEL: {args.model!r}; choose from {', '.join(MODEL_CHOICES)}"
+        )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     model = CodexChatModel(
-        model_name=os.getenv("CODEX_MODEL") or None,
+        model_name=args.model,
+        reasoning_effort=args.reasoning_effort,
         executable=os.getenv("CODEX_EXECUTABLE", "codex"),
         timeout=float(os.getenv("CODEX_TIMEOUT", "30")),
     )
@@ -78,7 +109,7 @@ def main() -> None:
             query=query,
             location="Spain",
             posted_within_days=1,
-            limit=20,
+            limit=50,
         )
         for query in queries
     ]

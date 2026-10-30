@@ -169,6 +169,27 @@ class WorkflowTests(unittest.TestCase):
             PERSONAL_INFO.to_prompt(),
         )
 
+    def test_promotional_companies_are_not_stored_or_ranked(self) -> None:
+        self.collector.collect.return_value = [
+            CollectedJob(
+                title="Engineer", company=company, location="Spain",
+                description="Python", url=f"https://example.com/filter/{index}",
+            )
+            for index, company in enumerate([
+                "Evolve", "EVOLVE", " Bending  Spoons ", "JOINRS", "Joinrs",
+                "Evolve Technologies", "Company",
+            ])
+        ]
+        self.ranker.rank_job.return_value = 0.1
+        result = self.workflow.compile().invoke({"search": self.search})
+        with self.sessions() as session:
+            from sqlalchemy import select
+
+            companies = list(session.scalars(select(Job.company).order_by(Job.id)))
+        self.assertEqual(companies, ["Evolve Technologies", "Company"])
+        self.assertEqual(len(result["ranked_ids"]), 2)
+        self.assertEqual(self.ranker.rank_job.call_count, 2)
+
     def test_database_tracking_skips_completed_job_even_if_files_are_removed(
         self,
     ) -> None:

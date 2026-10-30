@@ -66,6 +66,18 @@ uv run alembic upgrade head
 uv run job-finder
 ```
 
+By default, the workflow uses `gpt-6.1-terra` with low reasoning effort. Choose
+another model and, optionally, a reasoning level supported by that model:
+
+```bash
+uv run job-finder --model gpt-6.1-sol --reasoning-effort medium
+```
+
+`--model` takes precedence over `CODEX_MODEL` in the environment or `.env`.
+The accepted models are `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6.1-terra`,
+`gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`.
+Availability depends on your Codex subscription.
+
 The workflow collects jobs, stores them in SQLite, ranks unscored jobs, and
 creates a PDF plus editable `.tex` source for qualifying matches. Each CV
 includes up to three relevant projects with descriptions and technologies.

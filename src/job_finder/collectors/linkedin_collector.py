@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup, Tag
 
 from job_finder.collectors.base_collector import BaseCollector
+from job_finder.company_filters import is_excluded_company
 from job_finder.models.job import Job, JobSearch
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -122,6 +123,7 @@ class LinkedInCollector(BaseCollector):
                 break
             start += len(page)
             time.sleep(1)
+        jobs = [job for job in jobs if not is_excluded_company(job.company)]
         for job in jobs:
             retry_count = 3
             for attempt in range(retry_count):
